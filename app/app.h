@@ -243,6 +243,8 @@ struct App {
     BatcSpectrum batc;                    // BATC QO-100 wideband spectrum (WebSocket)
     std::vector<float> batcSmooth;        // exponentially smoothed BATC trace for display
     float batcLnbMhz = 9750.0f;          // LNB local oscillator frequency (MHz): IF = satellite - LNB_LO
+    double batcCorrectionHz = 0;
+    bool batcCalibrated = false, batcCalibrating = false;
     ImFont* mono = nullptr;
     ImFont* ui = nullptr;
     std::string hackrfErr;
@@ -495,6 +497,7 @@ void applyUiTheme(App& a);              // ui2.cpp: classic or new colours and s
 void spectrumPlot(App& a, ImVec2 size, bool noFreqAxis = false);
 void waterfallPlot(App& a, ImVec2 size);
 void batcSpectrumPlot(App& a, ImVec2 size);
+void dvbsCalibrationTick(App& a);
 void histogramPlot(App& a, ImVec2 size);
 void constDensityPlot(App& a, ImVec2 sz);
 void constClusterPlot(App& a, ImVec2 sz);

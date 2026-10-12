@@ -49,10 +49,11 @@ void overviewTab(App& a) {
     ImGui::DragFloatRange2("waterfall dB", &a.wf.minDb, &a.wf.maxDb, 1, -160, 20, "%.0f", "%.0f");
 }
     const float h = ImGui::GetContentRegionAvail().y;
+    const float batcH = std::max(80.f * gUi, h * 0.20f);
+    const float plotGap = ImGui::GetStyle().ItemSpacing.y;
     if (pal::dev()) {   // a divider you can drag, as in SDR++
         static float frac = 0.5f;
         spectrumPlot(a, ImVec2(-1, std::max(60.f, h * frac * 0.6f - 3)), h < 300 * gUi);   // a short tab: the frequency axis only once, under the waterfall
-        batcSpectrumPlot(a, ImVec2(-1, std::max(40.f, h * frac * 0.4f - 3)));
         const ImVec2 p = ImGui::GetCursorScreenPos();
         const float w = ImGui::GetContentRegionAvail().x;
         ImGui::InvisibleButton("##split", ImVec2(w, 7 * gUi));
@@ -60,11 +61,14 @@ void overviewTab(App& a) {
         if (hot) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
         if (ImGui::IsItemActive()) frac = std::min(0.8f, std::max(0.2f, frac + ImGui::GetIO().MouseDelta.y / std::max(1.f, h)));
         ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y + 3 * gUi), ImVec2(p.x + w, p.y + 3 * gUi), hot ? IM_COL32(200, 200, 200, 160) : IM_COL32(110, 110, 110, 110), hot ? 2.f : 1.f);
-        waterfallPlot(a, ImVec2(-1, -1));
+        const float waterfallH = std::max(40.f * gUi, (ImGui::GetContentRegionAvail().y - batcH - plotGap) * 0.5f);
+        waterfallPlot(a, ImVec2(-1, waterfallH));
+        batcSpectrumPlot(a, ImVec2(-1, ImGui::GetContentRegionAvail().y));
     } else {
     spectrumPlot(a, ImVec2(-1, h * 0.35f - 2));
-    batcSpectrumPlot(a, ImVec2(-1, h * 0.20f - 2));
-    waterfallPlot(a, ImVec2(-1, -1));
+    const float waterfallH = std::max(40.f * gUi, (ImGui::GetContentRegionAvail().y - batcH - plotGap) * 0.5f);
+    waterfallPlot(a, ImVec2(-1, waterfallH));
+    batcSpectrumPlot(a, ImVec2(-1, ImGui::GetContentRegionAvail().y));
     }
 }
 
@@ -167,6 +171,7 @@ void mainTabs(App& a) {
 void drawUI(App& a, ImVec2 disp) {
     ingestSpectrum(a);
     ingestRx(a);
+    dvbsCalibrationTick(a);
     dabHistory(a);
     fmHistory(a);
     if (const ModeUi* mu = modeUi(a.family)) if (mu->tick) mu->tick(a);
@@ -346,7 +351,7 @@ int main(int argc, char** argv) {
     glfwInit();
     gfx::windowHints();
     for (int i = 1; i < argc; i++) if (std::string(argv[i]) == "--hidden") glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);   // dev: with --shot, render without showing the window
-    GLFWwindow* window = glfwCreateWindow(1500, 900, "OnAir", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1500, 900, "OnAir - HB9IIU PATCH ver. " ONAIR_VERSION, nullptr, nullptr);
     if (!window) return 1;
 #ifndef __APPLE__
     {   // the default size is in pixels: make the window as large (in points) as on a 96 dpi display, but never larger than the screen

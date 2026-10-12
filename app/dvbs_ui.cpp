@@ -2,6 +2,7 @@
 // and the options of the test signal.
 #include "app.h"
 #include "dect2/dvbs_s2.h"
+#include "beacon_calibration.h"
 #include <cfloat>
 #include <cmath>
 #include <deque>
@@ -17,6 +18,30 @@ struct State {
     std::deque<float> snr;              // Es/N0 of the reports, newest last
 };
 State S;
+
+struct Calibration {
+    bool loaded = false;
+    std::string key, message;
+    float lnb = 0;
+    double started = 0, targetMhz = 0, oldMhz = 0, oldSr = 0;
+    int oldStd = 0, oldService = -1;
+    double oldAutoPlay = -1;
+    uint64_t lastSeq = 0;
+    BeaconMeasurements measurements;
+} C;
+
+std::string calibrationKey(const App& a) {
+    if (a.devIdx < 0 || a.devIdx >= (int)a.devices.size() || !a.devices[a.devIdx].isRadio()) return {};
+    return "qo100Calibration:" + radioKeyOf(a.devices[a.devIdx]);
+}
+
+void saveCorrection(App& a) {
+    auto& p = plat::prefs();
+    p.setD((C.key + ":hz").c_str(), a.batcCorrectionHz);
+    p.setD((C.key + ":lnb").c_str(), a.batcLnbMhz);
+    p.setB((C.key + ":valid").c_str(), a.batcCalibrated);
+    p.flush();
+}
 
 constexpr size_t kHist = 240;           // reports kept: about a minute
 
@@ -94,6 +119,90 @@ void dvbsSetManualSr(App& a, double hz) {
     S.pushedSr = -1;                        // force tick() to re-push
     a.engine.dvbs().setSymbolRate(hz);
     saveState(a);
+}
+
+namespace {
+
+void finishCalibration(App& a, const char* message, bool restoreFrequency = true) {
+    a.batcCalibrating = false;
+    C.message = message;
+    S.srMsym = C.oldSr; S.stdHint = C.oldStd;
+    S.pushedSr = -1; S.pushedStd = -1;
+    a.engine.dvbs().setSymbolRate(S.srMsym * 1e6);
+    a.engine.dvbs().setStandardHint(S.stdHint);
+    if (restoreFrequency) {
+        tuneFreq(a, C.oldMhz);
+        a.engine.player().select(-1);
+        a.playReq = C.oldService;
+        a.autoPlayAfter = C.oldService >= 0 ? -1 : C.oldAutoPlay;
+    }
+    saveState(a);
+}
+
+void beginCalibration(App& a) {
+    C.oldMhz = a.freqMhz; C.oldSr = S.srMsym; C.oldStd = S.stdHint;
+    C.oldService = a.engine.player().selected(); C.oldAutoPlay = a.autoPlayAfter;
+    C.targetMhz = 10491.5 - a.batcLnbMhz + a.batcCorrectionHz / 1e6;
+    C.started = glfwGetTime(); C.lastSeq = a.rx.dvbs.seq;
+    C.measurements.clear(); C.message.clear();
+    a.batcCalibrating = true;
+    a.autoPlayAfter = -1; a.playReq = -1;
+    a.engine.player().select(-1);
+    S.srMsym = 1.5; S.stdHint = 2;
+    S.pushedSr = -1; S.pushedStd = -1;
+    a.engine.dvbs().setSymbolRate(1.5e6);
+    a.engine.dvbs().setStandardHint(2);
+    tuneFreq(a, C.targetMhz);
+}
+
+} // namespace
+
+void dvbsCalibrationTick(App& a) {
+    loadState();
+    const std::string key = calibrationKey(a);
+    if (a.batcCalibrating) {
+        if (a.family != 6 || key != C.key || a.batcLnbMhz != C.lnb ||
+            std::fabs(a.freqMhz - C.targetMhz) > 1e-6) {
+            finishCalibration(a, "Calibration cancelled: receiver settings changed.", false);
+        } else if (!a.engine.running()) {
+            finishCalibration(a, "Receiver stopped: correction unchanged.");
+        } else {
+            const double elapsed = glfwGetTime() - C.started;
+            const auto& t = a.rx.dvbs;
+            if (elapsed > 2 && t.seq != C.lastSeq) {
+                C.lastSeq = t.seq;
+                // Verify the known beacon parameters and reject clipped spectra.
+                const double fs = a.engine.sampleRate();
+                const bool beacon = t.standard == 2 && t.lockFrame && t.lockCarrier &&
+                    t.modulation == 0 && t.codeRate == "4/5" &&
+                    std::fabs(t.symbolRate - 1.5e6) < 15000 &&
+                    t.spectrumSnrDb >= 6 && t.spectrumFitRms < 0.5f &&
+                    t.carrierHiHz > t.carrierLoHz &&
+                    t.carrierLoHz > -fs * 0.48 && t.carrierHiHz < fs * 0.48;
+                double correction = 0;
+                if (!beacon) C.measurements.clear();
+                else if (C.measurements.add((a.freqMhz - (10491.5 - a.batcLnbMhz)) * 1e6 + t.cfoHz, correction)) {
+                    a.batcCorrectionHz = correction;
+                    a.batcCalibrated = true;
+                    saveCorrection(a);
+                    finishCalibration(a, "Calibrated on beacon.");
+                }
+            }
+            if (a.batcCalibrating && elapsed > 30)
+                finishCalibration(a, "Beacon not found or unstable: correction unchanged.");
+        }
+    }
+    if (!C.loaded || key != C.key || C.lnb != a.batcLnbMhz) {
+        C.loaded = true; C.key = key; C.lnb = a.batcLnbMhz;
+        C.message.clear();
+        auto& p = plat::prefs();
+        a.batcCalibrated = !key.empty() && p.getB((key + ":valid").c_str(), false) &&
+            p.getD((key + ":lnb").c_str(), 0) == a.batcLnbMhz;
+        a.batcCorrectionHz = a.batcCalibrated ? p.getD((key + ":hz").c_str(), 0) : 0;
+        if (!std::isfinite(a.batcCorrectionHz) || std::fabs(a.batcCorrectionHz) > 1e6) {
+            a.batcCorrectionHz = 0; a.batcCalibrated = false;
+        }
+    }
 }
 
 namespace {
@@ -387,6 +496,7 @@ void tuner(App& a, bool& retune) {
     const double fs = a.engine.running() ? a.engine.sampleRate() : dvbsTuning().sampleRate;
     const double maxMsym = std::floor(dvbsMaxSymbolRate(fs) / 1e3) / 1e3;
     bool ch = false;
+    ImGui::BeginDisabled(a.batcCalibrating);
     ImGui::TextDisabled("Symbol rate");
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Auto measures the width of the carrier in the spectrum. Set it by hand for weak or narrow carriers, or when Auto is a few percent off.\n\n"
@@ -421,6 +531,28 @@ void tuner(App& a, bool& retune) {
     }
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Auto tries DVB-S2 and DVB-S. Choose one to skip the other search on a weak signal.");
     if (ch) saveState(a);
+    ImGui::EndDisabled();
+    const bool canCalibrate = a.engine.running() && !calibrationKey(a).empty() &&
+        a.engine.sampleRate() >= 2.1e6 && !a.scanner.progress().running;
+    ImGui::BeginDisabled(!canCalibrate && !a.batcCalibrating);
+    if (ImGui::Button(a.batcCalibrating ? "Cancel calibration" : "Calibrate on beacon")) {
+        if (a.batcCalibrating) finishCalibration(a, "Calibration cancelled: correction unchanged.");
+        else beginCalibration(a);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Measure total tuning correction using the QO-100 beacon.\nStart a radio at 2.1 Msps or more first.\nReturns to the previous frequency and symbol rate; may take 30 seconds.");
+    ImGui::BeginDisabled(a.batcCalibrating || !a.batcCalibrated);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset##qo100")) {
+        a.batcCorrectionHz = 0; a.batcCalibrated = false;
+        C.message.clear(); saveCorrection(a);
+    }
+    ImGui::EndDisabled();
+    ImGui::TextDisabled("Correction: %+.1f kHz%s", a.batcCorrectionHz / 1e3,
+                        a.batcCalibrated ? " (calibrated)" : " (not calibrated)");
+    if (a.batcCalibrating) ImGui::TextWrapped("Measuring beacon... %.0f / 30 s", glfwGetTime() - C.started);
+    else if (!C.message.empty()) ImGui::TextWrapped("%s", C.message.c_str());
 }
 
 // ---------------------------------------------------------------------------------------------- test signal
