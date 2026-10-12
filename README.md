@@ -1,3 +1,31 @@
+# OnAir for OSCAR-100 DATV
+
+This is a fork of [OnAir by adswill](https://github.com/adswill/OnAir), adapted for the **OSCAR-100 (QO-100) DATV community**.
+
+The aim is to make finding, tuning and watching DATV signals on QO-100 more convenient, while building on the original project's receiver and player.
+
+## Changes in this fork
+
+- **Live BATC wideband spectrum** in the Overview tab, alongside the local SDR spectrum and waterfall. The BATC feed requires an internet connection.
+- **Click-to-tune from the BATC spectrum**, converting the satellite frequency to your receiver's IF using an adjustable LNB local oscillator frequency (9750 MHz by default).
+- **Symbol-rate estimation** when hovering over a signal. Clicking applies the estimated symbol rate in DVB-S/S2 mode. This is an estimate and may need manual adjustment.
+- **Automatic playback** of the first available TV service at startup and after tuning from the BATC spectrum.
+- **Quick navigation** from the sidebar: click the video preview to open the player, or the mini BATC spectrum to open Overview.
+
+These additions are under development. The current build has been tried on Windows; the fork's changes have not yet been verified on macOS or Linux.
+
+## Credits
+
+Credit for the original OnAir application goes to [adswill and the upstream contributors](https://github.com/adswill/OnAir). The live wideband spectrum is provided by [BATC](https://batc.org.uk/).
+
+This fork retains the original **GPL-3.0-or-later** licence; see [LICENSE](LICENSE).
+
+## Original OnAir documentation
+
+The documentation below is retained from upstream. Its download, release, update and community links refer to the original OnAir project.
+
+---
+
 <p align="center"><img src="packaging/icons/onair_1024.png" width="140" alt="OnAir logo"></p>
 
 <h1 align="center">OnAir</h1>

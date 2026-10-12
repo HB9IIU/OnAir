@@ -449,6 +449,36 @@ void rightPanel(App& a) {
         else if (!a.video.has()) ImGui::TextDisabled("%s", ps.status.c_str());
         else a.video.draw(ImGui::GetContentRegionAvail());
         ImGui::EndChild();
+        if (ImGui::IsItemClicked()) { gForceTab = "TV"; a.subTv = 0; }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Click to open Player");
+    }
+    // ---- mini BATC spectrum (click → Overview)
+    {
+        const float mh = 52.f * gUi;
+        ImGui::BeginChild("batcmini", ImVec2(0, mh), ImGuiChildFlags_Borders);
+        const std::vector<float>& sm = a.batcSmooth;
+        if (!sm.empty()) {
+            ImDrawList* mdl = ImGui::GetWindowDrawList();
+            const ImVec2 mp0 = ImGui::GetWindowPos();
+            const float mw = ImGui::GetWindowWidth(), mhh = ImGui::GetWindowHeight();
+            const int n = (int)sm.size();
+            // batcSmooth is already 0..1 (0=noise, 1=beacon); divide by 1.15 for 15% headroom above beacon
+            std::vector<ImVec2> pts;
+            pts.reserve(n + 2);
+            pts.push_back(ImVec2(mp0.x, mp0.y + mhh));
+            for (int i = 0; i < n; i++) {
+                const float t = sm[i] / 1.15f;
+                pts.push_back(ImVec2(mp0.x + mw * i / (n - 1), mp0.y + mhh * (1.f - std::max(0.f, std::min(1.f, t)))));
+            }
+            pts.push_back(ImVec2(mp0.x + mw, mp0.y + mhh));
+            mdl->AddConvexPolyFilled(pts.data(), (int)pts.size(), IM_COL32(200, 160, 30, 35));
+            for (int i = 1; i < n; i++) mdl->AddLine(pts[i], pts[i + 1], IM_COL32(220, 180, 40, 180), 1.f);
+        } else {
+            ImGui::TextDisabled("BATC");
+        }
+        ImGui::EndChild();
+        if (ImGui::IsItemClicked()) gForceTab = "Overview";
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Click to go to Overview");
     }
     {
         OutputStats os = a.engine.outputStats();

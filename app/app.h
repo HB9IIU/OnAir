@@ -36,6 +36,7 @@
 #include "dect2/pskreporter.h"
 #include "dect2/passes.h"
 #include "dect2/maplayers.h"
+#include "batc_ws.h"
 #include "theme.h"
 #include "gfx.h"
 #include "icons.h"
@@ -204,6 +205,7 @@ struct App {
     float volume = 1.f;
     bool muted = false, subsOn = true;
     int playReq = -1;
+    double autoPlayAfter = 0.0; // glfwGetTime() after which to auto-play first service (0 = startup: fire immediately)
     int dabStation = -1;      // --station: DAB sub-channel to play on start (testing)
     std::vector<DeviceInfo> devices; // [0]=synthetic, [1]=file, then HackRFs
     // radios on the network the user added (prefs "netRadios"; listed by refreshDevices) and the "Add network radio" window
@@ -310,6 +312,9 @@ struct App {
     Waterfall wf;
     float yMin = -110, yMax = -30;
     bool peakHold = true;
+    BatcSpectrum batc;                    // BATC QO-100 wideband spectrum (WebSocket)
+    std::vector<float> batcSmooth;        // exponentially smoothed BATC trace for display
+    float batcLnbMhz = 9750.0f;          // LNB local oscillator frequency (MHz): IF = satellite - LNB_LO
     ImFont* mono = nullptr;
     ImFont* ui = nullptr;
     std::string hackrfErr;
@@ -685,6 +690,7 @@ ChanWidth channelWidth(const App& a);
 std::string widthText(double mhz);   // "7 MHz", "1.536 MHz", "12.5 kHz"
 void channelWidthPopup(App& a);      // automatic or manual, where the mode allows it; otherwise what fixes the width
 void spectrumWaterfall(App& a, float& frac, bool drag);   // the spectrum on top of the waterfall, one panel
+void batcSpectrumPlot(App& a, ImVec2 size);               // QO-100: BATC wideband spectrum panel
 // specx_ident.cpp: "Identify this signal" (dect2/sig_ident.h). The region is [offHz -+ widthHz / 2] from the samples' centre, which the radio
 // has at sampleCentreRadioHz (rfOfCentreHz: its RF, for the bands); identifyAt: the signal under a click on the spectrum (MHz)
 void identifyStart(App& a, double sampleCentreRadioHz, double offHz, double widthHz, double rfOfCentreHz);

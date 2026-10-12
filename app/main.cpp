@@ -58,6 +58,7 @@ void overviewTab(App& a) {
     ImGui::SameLine(0, 16 * gUi); ImGui::SetNextItemWidth(170 * gUi);
     ImGui::DragFloatRange2(tr("waterfall dB##wfdb"), &a.wf.minDb, &a.wf.maxDb, 1, -160, 20, "%.0f", "%.0f");
     }
+    batcSpectrumPlot(a, ImVec2(-1, 120 * gUi));
     static float frac = 0.5f;
     spectrumWaterfall(a, frac, pal::dev());   // the new interface: the boundary is a divider you can drag, as in SDR++
 }
@@ -203,6 +204,8 @@ void drawUI(App& a, ImVec2 disp, bool draw) {
     }
     a.video.update(a.engine.player());
     if (a.playReq >= 0) for (auto& sv : a.ts.services) if (sv.id == a.playReq && sv.havePmt) { a.engine.player().select(sv.id); a.engine.player().setVolume(a.volume); a.playReq = -1; break; }
+    if (a.autoPlayAfter >= 0 && glfwGetTime() >= a.autoPlayAfter && a.engine.player().selected() < 0)
+        for (auto& sv : a.ts.services) if (sv.havePmt) { a.engine.player().select(sv.id); a.engine.player().setVolume(a.volume); a.autoPlayAfter = -1; break; }
     if (!draw) return;   // a receiver whose tab is not shown: ticked above, not drawn
     {
         ImGuiIO& io = ImGui::GetIO();
@@ -540,6 +543,7 @@ int main(int argc, char** argv) {
     app.engine.player().setHardwareDecode(plat::prefs().getB("hwVideo", true));
     app.tune.synth.demoTv = true;   // the synthetic DVB-T / ATSC signal carries a test-card programme
     if (const char* ws = getenv("DECT2_WIZSTEP")) wizEnter(app, atoi(ws));
+    app.batc.start();
     app.engine.log("OnAir started");
     if (!gCrashNote.empty()) app.engine.log(gCrashNote);
     refreshDevices(app);

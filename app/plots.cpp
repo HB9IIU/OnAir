@@ -1,6 +1,9 @@
 // spectrum, waterfall, histogram and constellation plots
 #include "app.h"
 
+// Defined in dvbs_ui.cpp: sets S.srMsym so the Tuner panel reflects the new SR (unchecks Auto).
+void dvbsSetManualSr(App& a, double hz);
+
 // Click on the spectrum or the waterfall to tune to that frequency (a drag still pans). The grid follows the mode: FM 0.1 MHz, DMR 12.5 kHz, else 1 kHz.
 static void clickToTune(App& a, int plotId) {
     if (a.family == 55) { generalPlotMouse(a, plotId); return; }   // the general receiver: its channel marker, without retuning the radio
@@ -401,6 +404,120 @@ void spectrumWaterfall(App& a, float& frac, bool drag) {
     ImGui::SetCursorScreenPos(ImVec2(p.x, y));
     waterfallPlot(a, ImVec2(w, std::max(60.f, h - hs)), plt::Flags_Flush | plt::Flags_OpenTop);
     ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, y), ImVec2(p.x + w, y), hot ? IM_COL32(200, 200, 200, 160) : IM_COL32(110, 110, 110, 110), hot ? 2.f : 1.f);
+}
+
+void batcSpectrumPlot(App& a, ImVec2 size) {
+    auto frame = a.batc.latest();
+    // Smooth the incoming data (exponential moving average, same pattern as the local spectrum)
+    if (!frame.empty()) {
+        const size_t n = frame.size();
+        if (a.batcSmooth.size() != n) a.batcSmooth.assign(n, 0.f);
+        for (size_t i = 0; i < n; i++) {
+            float v = (float)((frame[i] / 65535.0 - BatcSpectrum::DISPLAY_FLOOR) / (BatcSpectrum::DISPLAY_CEILING - BatcSpectrum::DISPLAY_FLOOR));
+            v = std::max(0.f, std::min(1.f, v));
+            a.batcSmooth[i] += 0.35f * (v - a.batcSmooth[i]);
+        }
+    }
+    // LNB LO control — right-aligned, on the same line as the plot label area
+    {
+        const float fieldW = 90 * gUi;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - fieldW);
+        ImGui::SetNextItemWidth(fieldW);
+        ImGui::DragFloat("##lnblo", &a.batcLnbMhz, 1.0f, 1000.0f, 20000.0f, "LNB %.0f MHz");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("LNB local oscillator (MHz)\nIF = satellite \xe2\x88\x92 LNB LO\nDrag or double-click to edit\n9750 = Ku low band\n10600 = Ku high band");
+        // account for the one line we just drew so the plot fills the remaining height
+        size.y -= ImGui::GetItemRectSize().y + ImGui::GetStyle().ItemSpacing.y;
+    }
+    if (plt::BeginPlot("##batc", size, plt::Flags_NoLegend | plt::Flags_NoTitle)) {
+        plt::SetupAxes("frequency (MHz)", nullptr);
+        plt::SetupAxisLimits(plt::X1, BatcSpectrum::START_MHZ, BatcSpectrum::END_MHZ, plt::Cond_Once);
+        plt::SetupAxisLimits(plt::Y1, 0, 1.15, plt::Cond_Always);
+        plt::SetupAxisFormat(plt::X1, "%.1f");
+        if (!a.batcSmooth.empty()) {
+            const size_t n = a.batcSmooth.size();
+            std::vector<double> x(n), y(n);
+            for (size_t i = 0; i < n; i++) {
+                x[i] = BatcSpectrum::START_MHZ + (double)i / (n - 1) * (BatcSpectrum::END_MHZ - BatcSpectrum::START_MHZ);
+                y[i] = a.batcSmooth[i];
+            }
+            plt::Spec ss; ss.LineColor = ImVec4(1.0f, 0.83f, 0.23f, 1.0f); ss.LineWeight = 1.3f;
+            plt::PlotLine("QO-100 WB", x.data(), y.data(), (int)n, ss);
+            plt::Spec fs; fs.FillColor = ImVec4(1.0f, 0.83f, 0.23f, 0.12f); fs.LineColor = ImVec4(0, 0, 0, 0);
+            plt::PlotShaded("fill", x.data(), y.data(), (int)n, 0.0, fs);
+        }
+        if (!a.batc.isConnected()) {
+            plt::PlotText("Connecting to BATC...", (BatcSpectrum::START_MHZ + BatcSpectrum::END_MHZ) / 2, 0.5);
+        } else if (frame.empty() && a.batcSmooth.empty()) {
+            plt::PlotText("Waiting for BATC spectrum data...", (BatcSpectrum::START_MHZ + BatcSpectrum::END_MHZ) / 2, 0.5);
+        }
+        // Click-to-tune: hover shows a red line + tooltip with detected SR, click tunes
+        if (plt::IsPlotHovered() && !frame.empty()) {
+            const double satMhz = plt::GetPlotMousePos().x;
+            if (satMhz >= BatcSpectrum::START_MHZ && satMhz <= BatcSpectrum::END_MHZ) {
+                // Detect signal under cursor: find noise floor, peak, -3 dB bandwidth, snap to standard SR
+                static const int kSrs[] = {25,33,50,66,125,250,333,500,1000,1500,2000};
+                const size_t N = frame.size();
+                const double mhzPerBin = (BatcSpectrum::END_MHZ - BatcSpectrum::START_MHZ) / (N - 1);
+                // smooth (7-bin average, same as QOCast)
+                std::vector<float> sm(N);
+                for (size_t i = 0; i < N; i++) {
+                    float s = 0; int c = 0;
+                    for (int k = -3; k <= 3; k++) { size_t j = (size_t)std::max(0,(int)i+k); if (j < N) { s += frame[j]; c++; } }
+                    sm[i] = s / c;
+                }
+                // noise floor = median
+                std::vector<float> sorted(sm); std::sort(sorted.begin(), sorted.end());
+                const float noise = sorted[N / 2];
+                // peak near cursor (±0.15 MHz)
+                const int cBin = (int)std::round((satMhz - BatcSpectrum::START_MHZ) / mhzPerBin);
+                const int rad  = (int)std::round(0.15 / mhzPerBin);
+                int peak = std::max(0, cBin - rad);
+                for (int i = peak; i <= std::min((int)N-1, cBin+rad); i++) if (sm[i] > sm[peak]) peak = i;
+                // -3 dB bandwidth
+                int srKsps = 0;
+                double detSatMhz = satMhz;
+                if (sm[peak] - noise > 2000) {
+                    const float half = noise + (sm[peak] - noise) * 0.5f;
+                    int L = peak, R = peak;
+                    while (L > 0 && sm[L-1] > half) L--;
+                    while (R < (int)N-1 && sm[R+1] > half) R++;
+                    detSatMhz = BatcSpectrum::START_MHZ + (L + R) * 0.5 * mhzPerBin;
+                    // snap to nearest beacon or standard SR
+                    if (std::fabs(detSatMhz - 10491.5) < 0.3) { detSatMhz = 10491.5; srKsps = 1500; }
+                    else {
+                        const double measKsps = (R - L + 1) * mhzPerBin * 1000.0;
+                        int best = kSrs[0];
+                        for (int sr : kSrs) if (std::fabs(std::log((double)sr/measKsps)) < std::fabs(std::log((double)best/measKsps))) best = sr;
+                        srKsps = best;
+                    }
+                }
+                // red hover line at detected centre (or cursor if no signal)
+                const double lineMhz = srKsps > 0 ? detSatMhz : satMhz;
+                const plt::Rect lim = plt::GetPlotLimits();
+                const double lx[2] = {lineMhz, lineMhz}, ly[2] = {lim.Y.Min, lim.Y.Max};
+                plt::Spec ls; ls.LineColor = ImVec4(0.95f, 0.25f, 0.25f, 0.9f); ls.LineWeight = 1.2f;
+                plt::PlotLine("##tune", lx, ly, 2, ls);
+                // tooltip
+                const double ifMhz = lineMhz - a.batcLnbMhz;
+                char tip[96];
+                if (srKsps > 0)
+                    snprintf(tip, sizeof tip, "Tune to %.3f MHz  %d kS/s\n(IF %.3f MHz)", lineMhz, srKsps, ifMhz);
+                else
+                    snprintf(tip, sizeof tip, "Tune to %.3f MHz\n(IF %.3f MHz)", lineMhz, ifMhz);
+                ImGui::SetTooltip("%s", tip);
+                // click to tune frequency + SR
+                const ImVec2 d = ImGui::GetMouseDragDelta(0, 0);
+                if (ImGui::IsMouseReleased(0) && std::fabs(d.x) < 4 && std::fabs(d.y) < 4) {
+                    tuneFreq(a, ifMhz);
+                    if (srKsps > 0 && a.family == 6)   // family 6 = DVB-S/S2
+                        dvbsSetManualSr(a, srKsps * 1000.0);
+                    a.engine.player().select(-1);       // stop stale video
+                    a.autoPlayAfter = glfwGetTime() + 1.0; // auto-play 1s after retune (lets tsSnapshot refresh)
+                }
+            }
+        }
+        plt::EndPlot();
+    }
 }
 
 void histogramPlot(App& a, ImVec2 size) {
