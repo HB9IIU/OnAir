@@ -4,6 +4,8 @@ This is a fork of [OnAir by adswill](https://github.com/adswill/OnAir), adapted 
 
 The aim is to make finding, tuning and watching DATV signals on QO-100 more convenient, while building on the original project's receiver and player.
 
+**[Demo video on YouTube](https://youtu.be/jhqZUEKcI5s)**
+
 ## Changes in this fork
 
 - **Live BATC wideband spectrum** in the Overview tab, alongside the local SDR spectrum and waterfall. The BATC feed requires an internet connection.
