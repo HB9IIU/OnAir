@@ -85,6 +85,19 @@ const char* kTipTs = "Transport stream: packets are flowing to the demultiplexer
 
 // ---------------------------------------------------------------------------------------------- tick
 
+} // namespace
+
+// Called from batcSpectrumPlot: set the manual SR (and uncheck Auto) from an external click.
+void dvbsSetManualSr(App& a, double hz) {
+    loadState();
+    S.srMsym = hz / 1e6;
+    S.pushedSr = -1;                        // force tick() to re-push
+    a.engine.dvbs().setSymbolRate(hz);
+    saveState(a);
+}
+
+namespace {
+
 void tick(App& a) {
     loadState();
     const bool run = a.engine.running();

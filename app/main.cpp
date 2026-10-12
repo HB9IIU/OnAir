@@ -47,11 +47,12 @@ void overviewTab(App& a) {
     ImGui::DragFloatRange2("spectrum dB", &a.yMin, &a.yMax, 1, -160, 20, "%.0f", "%.0f");
     ImGui::SameLine(0, 16 * gUi); ImGui::SetNextItemWidth(170 * gUi);
     ImGui::DragFloatRange2("waterfall dB", &a.wf.minDb, &a.wf.maxDb, 1, -160, 20, "%.0f", "%.0f");
-    }
+}
     const float h = ImGui::GetContentRegionAvail().y;
     if (pal::dev()) {   // a divider you can drag, as in SDR++
         static float frac = 0.5f;
-        spectrumPlot(a, ImVec2(-1, std::max(60.f, h * frac - 3)), h < 300 * gUi);   // a short tab: the frequency axis only once, under the waterfall
+        spectrumPlot(a, ImVec2(-1, std::max(60.f, h * frac * 0.6f - 3)), h < 300 * gUi);   // a short tab: the frequency axis only once, under the waterfall
+        batcSpectrumPlot(a, ImVec2(-1, std::max(40.f, h * frac * 0.4f - 3)));
         const ImVec2 p = ImGui::GetCursorScreenPos();
         const float w = ImGui::GetContentRegionAvail().x;
         ImGui::InvisibleButton("##split", ImVec2(w, 7 * gUi));
@@ -61,7 +62,8 @@ void overviewTab(App& a) {
         ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y + 3 * gUi), ImVec2(p.x + w, p.y + 3 * gUi), hot ? IM_COL32(200, 200, 200, 160) : IM_COL32(110, 110, 110, 110), hot ? 2.f : 1.f);
         waterfallPlot(a, ImVec2(-1, -1));
     } else {
-    spectrumPlot(a, ImVec2(-1, h * 0.5f - 2));
+    spectrumPlot(a, ImVec2(-1, h * 0.35f - 2));
+    batcSpectrumPlot(a, ImVec2(-1, h * 0.20f - 2));
     waterfallPlot(a, ImVec2(-1, -1));
     }
 }
@@ -197,6 +199,8 @@ void drawUI(App& a, ImVec2 disp) {
     }
     a.video.update(a.engine.player());
     if (a.playReq >= 0) for (auto& sv : a.ts.services) if (sv.id == a.playReq && sv.havePmt) { a.engine.player().select(sv.id); a.engine.player().setVolume(a.volume); a.playReq = -1; break; }
+    if (a.autoPlayAfter >= 0 && glfwGetTime() >= a.autoPlayAfter && a.engine.player().selected() < 0)
+        for (auto& sv : a.ts.services) if (sv.havePmt) { a.engine.player().select(sv.id); a.engine.player().setVolume(a.volume); a.autoPlayAfter = -1; break; }
     {
         ImGuiIO& io = ImGui::GetIO();
         if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F, false)) {
@@ -405,6 +409,7 @@ int main(int argc, char** argv) {
     app.engine.player().setHardwareDecode(plat::prefs().getB("hwVideo", true));
     app.tune.synth.demoTv = true;   // the synthetic DVB-T / ATSC signal carries a test-card programme
     if (const char* ws = getenv("DECT2_WIZSTEP")) wizEnter(app, atoi(ws));
+    app.batc.start();
     app.engine.log("OnAir started");
     if (!gCrashNote.empty()) app.engine.log(gCrashNote);
     refreshDevices(app);
