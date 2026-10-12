@@ -9,6 +9,7 @@ The aim is to make finding, tuning and watching DATV signals on QO-100 more conv
 - **Live BATC wideband spectrum** in the Overview tab, alongside the local SDR spectrum and waterfall. The BATC feed requires an internet connection.
 - **Click-to-tune from the BATC spectrum**, converting the satellite frequency to your receiver's IF using an adjustable LNB local oscillator frequency (9750 MHz by default).
 - **Symbol-rate estimation** when hovering over a signal. Clicking applies the estimated symbol rate in DVB-S/S2 mode. This is an estimate and may need manual adjustment.
+- **Beacon calibration** in the DVB-S/S2 Tuner panel: start the radio, then click **Calibrate on beacon** to measure the total tuning correction using the QO-100 DATV beacon. The app returns to the previous frequency and symbol rate, and applies the saved correction to BATC click-to-tune. Corrections are saved per radio and LNB setting; **Reset** clears them. Calibration requires at least 2.1 Msps and a stable beacon lock, and leaves the previous correction unchanged if it fails.
 - **Automatic playback** of the first available TV service at startup and after tuning from the BATC spectrum.
 - **Quick navigation** from the sidebar: click the video preview to open the player, or the mini BATC spectrum to open Overview.
 
@@ -16,7 +17,9 @@ These additions are under development. The current build has been tried on Windo
 
 ## Credits
 
-Credit for the original OnAir application goes to [adswill and the upstream contributors](https://github.com/adswill/OnAir). The live wideband spectrum is provided by [BATC](https://batc.org.uk/).
+All credit for the OnAir application belongs entirely to [adswill and the upstream contributors](https://github.com/adswill/OnAir). This fork adds a small number of QO-100-specific features on top of their work; the receiver, player, signal processing, UI framework and everything else that makes OnAir what it is are entirely theirs. The live wideband spectrum is provided by [BATC](https://batc.org.uk/).
+
+> **If something does not work in this fork, please do not contact the author of OnAir.** First check whether the problem also occurs in the [original OnAir](https://github.com/adswill/OnAir). If it does, report it there. If it only happens here, it is caused by changes in this fork — open an issue in this repository instead.
 
 This fork retains the original **GPL-3.0-or-later** licence; see [LICENSE](LICENSE).
 

@@ -342,6 +342,7 @@ std::string openFileDialog() { return plat::openFileDialog(); }
 std::string saveFileDialog(const char* name) { return plat::saveFileDialog(name); }
 
 void loadPrefs(App& a) {
+    a.batcLnbMhz = (float)std::clamp(plat::prefs().getD("batcLnbMhz", 9750), 1000.0, 20000.0);
     plat::Prefs& d = plat::prefs();
     a.netRadios = netRadiosFromString(d.getS("netRadios", ""));
     if (d.has("freqMhz")) a.freqMhz = d.getD("freqMhz", a.freqMhz);

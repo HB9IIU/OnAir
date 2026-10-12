@@ -315,7 +315,9 @@ bool runButton(bool running, float size) {
 // a collapsible sidebar section; returns whether it is open
 bool section(const char* title) {
     ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1, 1, 1, 0.045f));
-    const bool open = ImGui::CollapsingHeader(trw(title), ImGuiTreeNodeFlags_DefaultOpen);
+    // Start closed once per section each launch; clicks remain effective afterward.
+    ImGui::SetNextItemOpen(false, ImGuiCond_Once);
+    const bool open = ImGui::CollapsingHeader(trw(title));
     ImGui::PopStyleColor();
     return open;
 }

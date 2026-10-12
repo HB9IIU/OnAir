@@ -315,6 +315,8 @@ struct App {
     BatcSpectrum batc;                    // BATC QO-100 wideband spectrum (WebSocket)
     std::vector<float> batcSmooth;        // exponentially smoothed BATC trace for display
     float batcLnbMhz = 9750.0f;          // LNB local oscillator frequency (MHz): IF = satellite - LNB_LO
+    double batcCorrectionHz = 0;
+    bool batcCalibrated = false, batcCalibrating = false;
     ImFont* mono = nullptr;
     ImFont* ui = nullptr;
     std::string hackrfErr;
@@ -691,6 +693,7 @@ std::string widthText(double mhz);   // "7 MHz", "1.536 MHz", "12.5 kHz"
 void channelWidthPopup(App& a);      // automatic or manual, where the mode allows it; otherwise what fixes the width
 void spectrumWaterfall(App& a, float& frac, bool drag);   // the spectrum on top of the waterfall, one panel
 void batcSpectrumPlot(App& a, ImVec2 size);               // QO-100: BATC wideband spectrum panel
+void dvbsCalibrationTick(App& a);                         // QO-100: beacon calibration tick (dvbs_ui.cpp)
 // specx_ident.cpp: "Identify this signal" (dect2/sig_ident.h). The region is [offHz -+ widthHz / 2] from the samples' centre, which the radio
 // has at sampleCentreRadioHz (rfOfCentreHz: its RF, for the bands); identifyAt: the signal under a click on the spectrum (MHz)
 void identifyStart(App& a, double sampleCentreRadioHz, double offHz, double widthHz, double rfOfCentreHz);

@@ -237,6 +237,8 @@ if(DECT2_BUILD_APP)
 endif()
 
 if(DECT2_BUILD_TESTS)
+  add_executable(test_beacon_calibration tests/test_beacon_calibration.cpp)
+  add_test(NAME beacon_calibration COMMAND test_beacon_calibration)
   add_executable(test_sync tests/test_sync.cpp)
   target_link_libraries(test_sync PRIVATE dect2core)
   enable_testing()

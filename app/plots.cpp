@@ -421,12 +421,35 @@ void batcSpectrumPlot(App& a, ImVec2 size) {
     // LNB LO control — right-aligned, on the same line as the plot label area
     {
         const float fieldW = 90 * gUi;
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - fieldW);
+        char status[96];
+        if (a.batcCalibrating) snprintf(status, sizeof status, "Calibrating...");
+        else if (a.batcCalibrated) snprintf(status, sizeof status, "Correction %+.1f kHz (calibrated)", a.batcCorrectionHz / 1e3);
+        else snprintf(status, sizeof status, "Not calibrated");
+        const float gap = ImGui::GetStyle().ItemSpacing.x;
+        const float rowW = fieldW + gap + ImGui::CalcTextSize(status).x;
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("BATC Spectrum - QO-100");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Live QO-100 wideband spectrum from BATC.\nClick a signal to tune your receiver.");
+        const bool sameRow = rowW + gap <= ImGui::GetContentRegionAvail().x - ImGui::GetItemRectSize().x;
+        if (sameRow) ImGui::SameLine(0, gap);
+        const bool fits = rowW <= ImGui::GetContentRegionAvail().x;
+        if (fits) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - rowW);
+        ImGui::BeginGroup();
         ImGui::SetNextItemWidth(fieldW);
-        ImGui::DragFloat("##lnblo", &a.batcLnbMhz, 1.0f, 1000.0f, 20000.0f, "LNB %.0f MHz");
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("LNB local oscillator (MHz)\nIF = satellite \xe2\x88\x92 LNB LO\nDrag or double-click to edit\n9750 = Ku low band\n10600 = Ku high band");
-        // account for the one line we just drew so the plot fills the remaining height
+        ImGui::BeginDisabled(a.batcCalibrating);
+        if (ImGui::DragFloat("##lnblo", &a.batcLnbMhz, 1.0f, 1000.0f, 20000.0f, "LNB %.0f MHz")) {
+            plat::prefs().setD("batcLnbMhz", a.batcLnbMhz);
+            plat::prefs().flush();
+        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Nominal LNB local oscillator (MHz)\nIF = satellite - LNB LO + correction\nDrag or double-click to edit\n9750 = Ku low band\n10600 = Ku high band");
+        if (fits) ImGui::SameLine(0, gap);
+        ImGui::TextColored(a.batcCalibrated && !a.batcCalibrating ? pal::okGreen() : pal::grey(), "%s", status);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Total receiving-chain correction applied to BATC click-to-tune.\nMeasure or reset it in DVB-S/S2 > Tuner > Calibrate on beacon.");
+        ImGui::EndGroup();
+        // Include the status row when the controls wrap in a narrow plot.
         size.y -= ImGui::GetItemRectSize().y + ImGui::GetStyle().ItemSpacing.y;
+        if (!sameRow) size.y -= ImGui::GetFrameHeightWithSpacing();
     }
     if (plt::BeginPlot("##batc", size, plt::Flags_NoLegend | plt::Flags_NoTitle)) {
         plt::SetupAxes("frequency (MHz)", nullptr);
@@ -498,7 +521,7 @@ void batcSpectrumPlot(App& a, ImVec2 size) {
                 plt::Spec ls; ls.LineColor = ImVec4(0.95f, 0.25f, 0.25f, 0.9f); ls.LineWeight = 1.2f;
                 plt::PlotLine("##tune", lx, ly, 2, ls);
                 // tooltip
-                const double ifMhz = lineMhz - a.batcLnbMhz;
+                const double ifMhz = lineMhz - a.batcLnbMhz + a.batcCorrectionHz / 1e6;
                 char tip[96];
                 if (srKsps > 0)
                     snprintf(tip, sizeof tip, "Tune to %.3f MHz  %d kS/s\n(IF %.3f MHz)", lineMhz, srKsps, ifMhz);
@@ -507,7 +530,7 @@ void batcSpectrumPlot(App& a, ImVec2 size) {
                 ImGui::SetTooltip("%s", tip);
                 // click to tune frequency + SR
                 const ImVec2 d = ImGui::GetMouseDragDelta(0, 0);
-                if (ImGui::IsMouseReleased(0) && std::fabs(d.x) < 4 && std::fabs(d.y) < 4) {
+                if (!a.batcCalibrating && ImGui::IsMouseReleased(0) && std::fabs(d.x) < 4 && std::fabs(d.y) < 4) {
                     tuneFreq(a, ifMhz);
                     if (srKsps > 0 && a.family == 6)   // family 6 = DVB-S/S2
                         dvbsSetManualSr(a, srKsps * 1000.0);

@@ -170,6 +170,7 @@ static bool gIdentifyDev = false;   // --identify
 void drawUI(App& a, ImVec2 disp, bool draw) {
     ingestSpectrum(a);
     ingestRx(a);
+    dvbsCalibrationTick(a);
     dabHistory(a);
     fmHistory(a);
     if (const ModeUi* mu = modeUi(a.family)) if (mu->tick) mu->tick(a);
@@ -447,7 +448,7 @@ int main(int argc, char** argv) {
     gfx::windowHints();
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);   // a fullscreen main window stays up when another window or monitor is clicked (#71)
     for (int i = 1; i < argc; i++) if (std::string(argv[i]) == "--hidden") { glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); gNoOsWindows = true; }   // dev: with --shot, render without showing the window
-    GLFWwindow* window = glfwCreateWindow(1500, 900, "OnAir", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1500, 900, "OnAir - HB9IIU PATCH ver. " ONAIR_VERSION, nullptr, nullptr);
     if (!window) return 1;
 #ifndef __APPLE__
     {   // the default size is in pixels: make the window as large (in points) as on a 96 dpi display, but never larger than the screen

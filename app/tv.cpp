@@ -235,6 +235,8 @@ void playerTab(App& a) {
     else if (!a.video.has()) ImGui::TextDisabled("%s", ps.hasAudio && !ps.hasVideo ? "audio only" : ps.status.c_str());
     else a.video.draw(ImGui::GetContentRegionAvail());
     ImGui::EndChild();
+    if (a.video.has() && ImGui::IsItemClicked()) gForceTab = "Overview";
+    if (a.video.has() && ImGui::IsItemHovered()) ImGui::SetTooltip("Click to return to Overview");
     const float ctlY = ImGui::GetCursorPosY();
     if (ImGui::Button(pl.selected() >= 0 ? "Stop" : "Play")) { if (pl.selected() >= 0) pl.select(-1); else if (a.playReq < 0 && !a.ts.services.empty()) { int sid = a.ts.services[0].id; pl.select(sid); pl.setVolume(a.volume); } }
     flowNext();
@@ -457,22 +459,28 @@ void rightPanel(App& a) {
         const float mh = 52.f * gUi;
         ImGui::BeginChild("batcmini", ImVec2(0, mh), ImGuiChildFlags_Borders);
         const std::vector<float>& sm = a.batcSmooth;
-        if (!sm.empty()) {
+        if (sm.size() >= 2) {
             ImDrawList* mdl = ImGui::GetWindowDrawList();
             const ImVec2 mp0 = ImGui::GetWindowPos();
             const float mw = ImGui::GetWindowWidth(), mhh = ImGui::GetWindowHeight();
             const int n = (int)sm.size();
             // batcSmooth is already 0..1 (0=noise, 1=beacon); divide by 1.15 for 15% headroom above beacon
             std::vector<ImVec2> pts;
-            pts.reserve(n + 2);
-            pts.push_back(ImVec2(mp0.x, mp0.y + mhh));
+            pts.reserve(n);
             for (int i = 0; i < n; i++) {
                 const float t = sm[i] / 1.15f;
                 pts.push_back(ImVec2(mp0.x + mw * i / (n - 1), mp0.y + mhh * (1.f - std::max(0.f, std::min(1.f, t)))));
             }
-            pts.push_back(ImVec2(mp0.x + mw, mp0.y + mhh));
-            mdl->AddConvexPolyFilled(pts.data(), (int)pts.size(), IM_COL32(200, 160, 30, 35));
-            for (int i = 1; i < n; i++) mdl->AddLine(pts[i], pts[i + 1], IM_COL32(220, 180, 40, 180), 1.f);
+            // The whole spectrum outline is not convex. Fill separate trapezoids
+            // to the baseline; disable fill AA to avoid seams between segments.
+            const ImDrawListFlags flags = mdl->Flags;
+            mdl->Flags &= ~ImDrawListFlags_AntiAliasedFill;
+            for (int i = 1; i < n; i++)
+                mdl->AddQuadFilled(pts[i - 1], pts[i],
+                    ImVec2(pts[i].x, mp0.y + mhh),
+                    ImVec2(pts[i - 1].x, mp0.y + mhh), IM_COL32(200, 160, 30, 35));
+            mdl->Flags = flags;
+            for (int i = 1; i < n; i++) mdl->AddLine(pts[i - 1], pts[i], IM_COL32(220, 180, 40, 180), 1.f);
         } else {
             ImGui::TextDisabled("BATC");
         }
