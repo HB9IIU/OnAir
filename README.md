@@ -4,7 +4,11 @@ This is a fork of [OnAir by adswill](https://github.com/adswill/OnAir), adapted 
 
 The aim is to make finding, tuning and watching DATV signals on QO-100 more convenient, while building on the original project's receiver and player.
 
-**[Demo video on YouTube](https://youtu.be/jhqZUEKcI5s)**
+<p align="center">
+  <a href="https://youtu.be/jhqZUEKcI5s">
+    <img src="https://img.youtube.com/vi/jhqZUEKcI5s/maxresdefault.jpg" alt="Demo video" width="700">
+  </a>
+</p>
 
 ## Changes in this fork
 
