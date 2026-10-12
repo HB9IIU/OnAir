@@ -11,7 +11,7 @@ VERSION=${1:-$(grep -m1 'project(' CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+
 BUILD=build-windows
 OUT=$BUILD/OnAir-$VERSION-windows-x64
 PREFIX=${MSYSTEM_PREFIX:-/ucrt64}
-cmake -S . -B $BUILD -G Ninja -DCMAKE_BUILD_TYPE=Release -DDECT2_BUILD_APP=ON -DDECT2_BUILD_TESTS=ON
+cmake -S . -B $BUILD -G Ninja -DCMAKE_BUILD_TYPE=Release -DDECT2_BUILD_APP=ON -DDECT2_BUILD_TESTS=ON \n    -DCMAKE_C_COMPILER="$PREFIX/bin/gcc.exe" \n    -DCMAKE_CXX_COMPILER="$PREFIX/bin/g++.exe"
 cmake --build $BUILD -j"$(nproc)" --target dect2 dect2cli dect2scan
 
 rm -rf "$OUT" && mkdir -p "$OUT"
