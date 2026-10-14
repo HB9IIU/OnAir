@@ -72,12 +72,12 @@ void updateButton(App& a) {
     ImVec4 col(0.62f, 0.68f, 0.75f, 1);
     switch (st.phase) {
     case Updater::Phase::Checking: snprintf(label, sizeof label, "%s", tr("checking…")); break;
-    case Updater::Phase::Available: snprintf(label, sizeof label, tr("update %s"), st.release.version.c_str()); col = ImVec4(0.95f, 0.75f, 0.2f, 1); if (skipped(a, st.release)) { snprintf(label, sizeof label, "v%s", ONAIR_VERSION); col = ImVec4(0.62f, 0.68f, 0.75f, 1); } break;
+    case Updater::Phase::Available: snprintf(label, sizeof label, tr("update %s"), st.release.version.c_str()); col = ImVec4(0.95f, 0.75f, 0.2f, 1); if (skipped(a, st.release)) { snprintf(label, sizeof label, "v%s-Daniel", ONAIR_VERSION); col = ImVec4(0.62f, 0.68f, 0.75f, 1); } break;
     case Updater::Phase::Downloading: snprintf(label, sizeof label, tr("downloading %.0f%%"), st.total ? 100.0 * (double)st.done / (double)st.total : 0.0); col = ImVec4(0.4f, 0.75f, 0.95f, 1); break;
     case Updater::Phase::Preparing: snprintf(label, sizeof label, "%s", tr("preparing…")); col = ImVec4(0.4f, 0.75f, 0.95f, 1); break;
     case Updater::Phase::Ready: snprintf(label, sizeof label, "%s", tr("restart to update")); col = ImVec4(0.35f, 0.9f, 0.45f, 1); break;
-    case Updater::Phase::Failed: snprintf(label, sizeof label, "v%s", ONAIR_VERSION); col = ImVec4(0.95f, 0.5f, 0.35f, 1); break;
-    default: snprintf(label, sizeof label, "v%s", ONAIR_VERSION); break;
+    case Updater::Phase::Failed: snprintf(label, sizeof label, "v%s-Daniel", ONAIR_VERSION); col = ImVec4(0.95f, 0.5f, 0.35f, 1); break;
+    default: snprintf(label, sizeof label, "v%s-Daniel", ONAIR_VERSION); break;
     }
     ImGui::PushStyleColor(ImGuiCol_Text, col);
     if (ImGui::SmallButton(label)) { ImGui::OpenPopup("##updates"); }
@@ -88,7 +88,7 @@ void updateButton(App& a) {
     ImGui::SetNextWindowPos(ImVec2(bmax.x + 70 * gUi, bmax.y + 4), ImGuiCond_Always, ImVec2(1, 0));   // under the button, its right edge near the window's
     ImGui::SetNextWindowSizeConstraints(ImVec2(400 * gUi, 0), ImVec2(520 * gUi, 520 * gUi));
     if (ImGui::BeginPopup("##updates")) {
-        ImGui::Text(tr("OnAir %s"), ONAIR_VERSION);
+        ImGui::Text(tr("OnAir %s-Daniel"), ONAIR_VERSION);
         ImGui::SameLine(0, 10 * gUi);
         ImGui::TextDisabled("(%s)", installKindName(st.kind));
         ImGui::Separator();
